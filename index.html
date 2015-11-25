@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Neighborhood Map of Seaside, Florida</title>
+    <link href="css/location.css" rel="stylesheet">
+    <script src="http://maps.googleapis.com/maps/api/js?libraries=places"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
+  <body>
+    <div id="gMap" class="map"></div>
+    <div class="list-container" data-bind="css: {'hidden-container': !displayingList()}">
+      <div class="toggle-container">
+        <input type="button" class="toggle-button" data-bind="click: function() { $root.toggleList(this); },
+                                                                          attr: { value: toggleValue }"/>
+      </div>
+      <div>
+        <form data-bind="submit: searchPlaces, visible: displayingList()">
+          <input class="filter-input" data-bind="value: searchString" placeholder="Filter results by name or type" autofocus></input>
+          <input type="submit" value="search" class="filter-button">
+        </form>
+      </div>
+      <div>
+        <ul class="filtered-places" data-bind="foreach: {data: places, as: 'place'},
+                                                      visible: displayingList()">
+          <li class="place-list" data-bind="visible: place.matchedPlace,
+                                             click: function() { $root.placeClick(place); },
+                                              attr: { id: place.id }">
+            <span class="poi-name" data-bind="text: place.name"></span>
+          </li>
+        </ul>
+      </div>
+      <script src="js/knockout-3.3.0.js"></script>
+      <script src="js/jquery-2.1.4.min.js"></script>
+      <script src="js/app.js"></script>
+      <script src="http://oauth.googlecode.com/svn/code/javascript/oauth.js"></script>
+      <script src="http://oauth.googlecode.com/svn/code/javascript/sha1.js"></script>
+  </body>
+</html>
