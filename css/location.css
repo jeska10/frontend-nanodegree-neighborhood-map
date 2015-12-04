@@ -3,8 +3,8 @@
   box-sizing: border-box;
 }
 
-html, 
-body, 
+html,
+body,
 table {
   height: 100%;
   width: 100%;
@@ -34,11 +34,12 @@ span {
   width: 320px;
   height: 100%;
   background: #1c5380;
-  z-index: 200
+  z-index: 200;
 }
 
 .hidden-container {
   height: 35px;
+  width: 35px;
 }
 
 .toggle-container {
@@ -96,7 +97,7 @@ span {
   padding: 5px 15px;
   font: 14px Arial, Helvetica, sans-serif;
   color: gray;
-  border: 1px solid #0076a3; 
+  border: 1px solid #0076a3;
   border-top-left-radius: 5px 5px;
   border-bottom-left-radius: 5px 5px;
   width: 65%;
@@ -106,5 +107,15 @@ span {
   width: 25px;
   height: 25px;
   float: right;
+}
+
+.error-hidden {
+  visibility: hidden;
+}
+
+.error-container {
+  text-align: center;
+  padding-top: 20%;
+  font-size: large;
 }
                    

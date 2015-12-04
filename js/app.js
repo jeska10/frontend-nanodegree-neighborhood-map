@@ -7,6 +7,8 @@ function MyViewModel() {
     var latLng;
     var infoWindow;
     var service;
+    var autocomplete;
+    var listClosedByUser = false;
 
     self.places = ko.observableArray([]);
     self.currentPlace = ko.observable();
@@ -31,6 +33,12 @@ function MyViewModel() {
         clickedItem.addClass("current-place");
         self.displayInfoWindow(self.currentPlace());
         self.currentPlace().marker.setAnimation(google.maps.Animation.BOUNCE);
+        if (window.innerWidth < 720) {
+        	// close search list after user selects a point of interest
+        	self.displayingList(false);
+        	self.toggleValue('+'); 
+        	listClosedByUser = false;
+    	}
     };
 
     // match the search string with the name and/or type of the list of places
@@ -60,6 +68,7 @@ function MyViewModel() {
         // get the details for the passed in place
     	service.getDetails(request, function (details, status) {
             // Default values to display if getDetails fails.
+            var content = '';
             var locName = '';
             var locStreet = '';
             var locCityState = '';
@@ -86,85 +95,99 @@ function MyViewModel() {
                 if (details.formatted_address) {
                     locStreet = '<p>' + details.formatted_address + '</p>';
                 }
+                
+			    var accessor = {
+			        consumerSecret: auth.consumerSecret,
+			        tokenSecret: auth.accessTokenSecret
+			    };
+	
+			    var parameters = [];
+			    parameters.push(['term', place.name]);
+			    parameters.push(['phone', details.formatted_phone_number]);
+			    parameters.push(['callback', 'cb']);
+			    parameters.push(['oauth_consumer_key', auth.consumerKey]);
+			    parameters.push(['oauth_consumer_secret', auth.consumerSecret]);
+			    parameters.push(['oauth_token', auth.accessToken]);
+			    parameters.push(['oauth_signature_method', 'HMAC-SHA1']);
+	
+			    // make a call to the yelp api by phone number
+			    var message = {
+			        'action': 'http://api.yelp.com/v2/phone_search',
+			        'method': 'GET',
+			        'parameters': parameters
+			    };
+	
+			    OAuth.setTimestampAndNonce(message);
+			    OAuth.SignatureMethod.sign(message, accessor);
+	
+			    var parameterMap = OAuth.getParameterMap(message.parameters);
+			    parameterMap.oauth_signature = OAuth.percentEncode(parameterMap.oauth_signature);
+	
+			    // parse the response data and format for the info window
+			    $.ajax( {
+			        'url': message.action,
+			        'data': parameterMap,
+			        'cache': true,
+			        'dataType': 'jsonp',
+			        'jsonpCallback': 'cb',
+			        'success': function (data, textStats, XMLHttpRequest) {
+				        if (data.total != 0) {
+				        	var business = data.businesses[0];
+	                        if (business.url != null && business.url != '') {
+		                        // Add a link to the location's website in the place's name.
+		                        locName = locName + '<span class="right-align"><a target="_blank" href=' + business.url + '><img src="images/yelp_icon.png" alt="Yelp" height="24" width="24"></a></span>';
+		                    }
+	
+	                        if (business.rating_img_url != null && business.rating_img_url != '') {
+	                            businessRatingImg = '<p><img src=' + business.rating_img_url_small + ' alt="Yelp" height="10" width="50"></p>';
+	                        }
+		                    
+	                        if (business.image_url != null && business.image_url != '') {
+	                            businessImage = '<p><img src=' + business.image_url + ' alt="Business Image" height="150" width="50%"></p>';
+	                        }
+			    		}
+			        },
+			        'error': function (data, textStats, XMLHttpRequest) {
+			            content = '<div class="infowindow"><h4>' +
+			                      locName + '</h4>' +
+			                      locStreet +
+			                      locPhone +
+			                      '</div>';
+		
+			            infowindow.setContent(content);
+			            infowindow.open(myMap, place.marker);
+			        },
+			        'complete': function (data, textStats, XMLHttpRequest) {
+			            content = '<div class="infowindow"><h4>' +
+			                      locName + '</h4>' +
+			                      locStreet +
+			                      locCityState +
+			                      locPhone +
+			                      locOpenHours +
+			                      businessUrl +
+			                      businessRatingImg +
+			                      businessImage +
+			                      '</div>';
+	
+			            infowindow.setContent(content);
+			            infowindow.open(myMap, place.marker);
+			        }
+			    });
             }
             else {
-				locName = '<span class="business-link">' + place.name + '</span>';
+	            content = '<div class="infowindow"><h4>' +
+	                      place.name + '</h4>' +
+	                      '<p>Detailed information is not currently available for this location.</p>' +
+	                      '<p>Please try again later.</p>' +
+	                      '</div>';
+
+	            infowindow.setContent(content);
+	            infowindow.open(myMap, place.marker);
             }
-
-		    var accessor = {
-		        consumerSecret: auth.consumerSecret,
-		        tokenSecret: auth.accessTokenSecret
-		    };
-
-		    var parameters = [];
-		    parameters.push(['term', place.name]);
-		    parameters.push(['phone', details.formatted_phone_number]);
-		    parameters.push(['callback', 'cb']);
-		    parameters.push(['oauth_consumer_key', auth.consumerKey]);
-		    parameters.push(['oauth_consumer_secret', auth.consumerSecret]);
-		    parameters.push(['oauth_token', auth.accessToken]);
-		    parameters.push(['oauth_signature_method', 'HMAC-SHA1']);
-
-		    // make a call to the yelp api by phone number
-		    var message = {
-		        'action': 'http://api.yelp.com/v2/phone_search',
-		        'method': 'GET',
-		        'parameters': parameters
-		    };
-
-		    OAuth.setTimestampAndNonce(message);
-		    OAuth.SignatureMethod.sign(message, accessor);
-
-		    var parameterMap = OAuth.getParameterMap(message.parameters);
-		    parameterMap.oauth_signature = OAuth.percentEncode(parameterMap.oauth_signature);
-
-		    // parse the response data and format for the info window
-		    $.ajax( {
-		        'url': message.action,
-		        'data': parameterMap,
-		        'cache': true,
-		        'dataType': 'jsonp',
-		        'jsonpCallback': 'cb',
-		        'success': function (data, textStats, XMLHttpRequest) {
-			        if (data.total != 0) {
-			        	var business = data.businesses[0];
-                        if (business.url != null && business.url != '') {
-	                        // Add a link to the location's website in the place's name.
-	                        locName = locName + '<span class="right-align"><a target="_blank" href=' + business.url + '><img src="images/yelp_icon.png" alt="Yelp" height="24" width="24"></a></span>';
-	                    }
-
-                        if (business.rating_img_url != null && business.rating_img_url != '') {
-                            businessRatingImg = '<p><img src=' + business.rating_img_url_small + ' alt="Yelp" height="10" width="50"></p>';
-                        }
-	                    
-                        if (business.image_url != null && business.image_url != '') {
-                            businessImage = '<p><img src=' + business.image_url + ' alt="Business Image" height="150" width="50%"></p>';
-                        }
-		    		}
-		        },
-		        'error': function (data, textStats, XMLHttpRequest) {
-			        console.log('status code ' + data.status);
-		        },
-		        'complete': function (data, textStats, XMLHttpRequest) {
-		            content = '<div class="infowindow"><h4>' +
-		                      locName + '</h4>' +
-		                      locStreet +
-		                      locCityState +
-		                      locPhone +
-		                      locOpenHours +
-		                      businessUrl +
-		                      businessRatingImg +
-		                      businessImage +
-		                      '</div>';
-
-		            infowindow.setContent(content);
-		            infowindow.open(myMap, place.marker);
-		        }
-		    })
       	});
     };
 
-    // object to store access information  
+    // object to store access information
     var auth = {
         // Update with your auth tokens.
         consumerKey: "xOvnTKqvYeJ4aSpFLmNk7A",
@@ -190,10 +213,27 @@ function MyViewModel() {
             radius: '500',
             types: ['restaurant','bar','shopping_mall','movie_theater','clothing_store','book_store']
         };
+        
+  		autocomplete = new google.maps.places.Autocomplete(document.getElementById('searchInput'));
+  		autocomplete.bindTo('bounds', myMap);
 
         infowindow = new google.maps.InfoWindow();
         service = new google.maps.places.PlacesService(myMap);
         service.nearbySearch(request, placesCallback);
+
+		autocomplete.addListener('place_changed', function() {
+			var place = autocomplete.getPlace();
+			self.searchString(place.name);
+			$('#searchButton').trigger('click');
+       		//$('#' + place.id).trigger('click');
+		});
+    	
+        if (window.innerWidth < 720  && self.displayingList()) {
+        	// close search list when the screen is resized to a small screen size
+        	self.displayingList(false);
+    		self.toggleValue('+');
+    		listClosedByUser = false;
+    	}
     }
 
     // handle the place search response
@@ -211,16 +251,18 @@ function MyViewModel() {
 
     // attributes to determine whether to display the places list
     self.displayingList = ko.observable(true);
-    self.toggleValue = ko.observable("-");
+    self.toggleValue = ko.observable('-');
 
     // function to hide and show the places list
     self.toggleList = function () {
         if (self.displayingList()) {
             self.displayingList(false);
-            self.toggleValue("+");
+            self.toggleValue('+');
+	    	listClosedByUser = true;
         } else {
             self.displayingList(true);
-            self.toggleValue("-");
+            self.toggleValue('-');
+	    	listClosedByUser = false;
         }
     };
 
@@ -245,12 +287,34 @@ function MyViewModel() {
 
       google.maps.event.addDomListener(window, 'resize', function() {
         myMap.panTo(latLng);
+        if (window.innerWidth < 720) {
+        	// close search list when the screen is resized to a small screen size
+        	self.displayingList(false);
+    		self.toggleValue('+');
+    	} 
+    	else if (!listClosedByUser && !self.displayingList()) {
+        	// open search list when the screen is resized to a larger size and the
+        	// user wasn't the one who closed the list
+        	self.displayingList(true);
+    		self.toggleValue('-');
+   		}
       });
 
       return marker;
     }
-
+    
     initMap();
 }
 
-ko.applyBindings(new MyViewModel());
+var googleSuccess = function() {
+	ko.applyBindings(new MyViewModel());
+}
+
+var googleError = function() {
+	$('#pointsOfInterest').addClass("hidden-container");
+	$('#searchForm').addClass("error-hidden");
+	$('#gMap').append("<p id='errorMessage'>The neighborhood map can't be displayed at this time because the necessary resources are not available.</p>");
+	$('#gMap').addClass("error-container");
+}
+
+
