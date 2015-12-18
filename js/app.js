@@ -1,3 +1,8 @@
+(function () {
+   'use strict';
+   // this function is strict...
+}());
+
 function MyViewModel() {
     var self = this;
 
@@ -7,12 +12,12 @@ function MyViewModel() {
     var latLng;
     var infoWindow;
     var service;
-    var autocomplete;
     var listClosedByUser = false;
 
     self.places = ko.observableArray([]);
     self.currentPlace = ko.observable();
     self.searchString = ko.observable();
+    self.nullObservable = ko.observable();
 
     // highlight the place clicked in the list of places and
     // display the info window
@@ -20,10 +25,10 @@ function MyViewModel() {
         var listItem;
         var clickedItem;
 
-        if (self.currentPlace() != null && self.currentPlace().id != clickedPlace.id) {
+        if (self.currentPlace() !== self.nullObservable() && self.currentPlace().id !== clickedPlace.id) {
             //end the current animation
         	self.currentPlace().marker.setAnimation(null);
-			infowindow.close(myMap, self.currentPlace().marker);
+			infoWindow.close(myMap, self.currentPlace().marker);
             listItem = $('#' + self.currentPlace().id);
             listItem.removeClass("current-place");
         }
@@ -49,12 +54,14 @@ function MyViewModel() {
             var name = place.name.toLowerCase();
             var types = place.types;
             
-            if (name.indexOf(str) >= 0 || types.indexOf(str) >= 0 || str == '') {
+            if (name.indexOf(str) >= 0 || types.indexOf(str) >= 0 || str === '') {
                 place.matchedPlace(true);
-                place.marker.setMap(myMap);
+                //place.marker.setMap(myMap);
+                place.marker.setVisible(true);
             } else {
                 place.matchedPlace(false);
-                place.marker.setMap(null);
+                //place.marker.setMap(null);
+                place.marker.setVisible(false);
             }
         });
     };
@@ -123,6 +130,13 @@ function MyViewModel() {
 			    var parameterMap = OAuth.getParameterMap(message.parameters);
 			    parameterMap.oauth_signature = OAuth.percentEncode(parameterMap.oauth_signature);
 	
+			    var requestTimeout = setTimeout(function(){
+			        content = '<div class="infowindow"><h4>Failed to get Yelp resources</h4></div>';
+		
+			        infoWindow.setContent(content);
+			        infoWindow.open(myMap, place.marker);				    
+				}, 10000);
+				
 			    // parse the response data and format for the info window
 			    $.ajax( {
 			        'url': message.action,
@@ -131,21 +145,22 @@ function MyViewModel() {
 			        'dataType': 'jsonp',
 			        'jsonpCallback': 'cb',
 			        'success': function (data, textStats, XMLHttpRequest) {
-				        if (data.total != 0) {
+				        if (data.total !== 0) {
 				        	var business = data.businesses[0];
-	                        if (business.url != null && business.url != '') {
+	                        if (business.url !== null && business.url !== '') {
 		                        // Add a link to the location's website in the place's name.
 		                        locName = locName + '<span class="right-align"><a target="_blank" href=' + business.url + '><img src="images/yelp_icon.png" alt="Yelp" height="24" width="24"></a></span>';
 		                    }
 	
-	                        if (business.rating_img_url != null && business.rating_img_url != '') {
+	                        if (business.rating_img_url !== null && business.rating_img_url !== '') {
 	                            businessRatingImg = '<p><img src=' + business.rating_img_url_small + ' alt="Yelp" height="10" width="50"></p>';
 	                        }
 		                    
-	                        if (business.image_url != null && business.image_url != '') {
+	                        if (business.image_url !== null && business.image_url !== '') {
 	                            businessImage = '<p><img src=' + business.image_url + ' alt="Business Image" height="150" width="50%"></p>';
 	                        }
 			    		}
+			    		clearTimeout(requestTimeout);
 			        },
 			        'error': function (data, textStats, XMLHttpRequest) {
 			            content = '<div class="infowindow"><h4>' +
@@ -154,8 +169,9 @@ function MyViewModel() {
 			                      locPhone +
 			                      '</div>';
 		
-			            infowindow.setContent(content);
-			            infowindow.open(myMap, place.marker);
+			            infoWindow.setContent(content);
+			            infoWindow.open(myMap, place.marker);
+			    		clearTimeout(requestTimeout);			            
 			        },
 			        'complete': function (data, textStats, XMLHttpRequest) {
 			            content = '<div class="infowindow"><h4>' +
@@ -169,8 +185,8 @@ function MyViewModel() {
 			                      businessImage +
 			                      '</div>';
 	
-			            infowindow.setContent(content);
-			            infowindow.open(myMap, place.marker);
+			            infoWindow.setContent(content);
+			            infoWindow.open(myMap, place.marker);
 			        }
 			    });
             }
@@ -181,8 +197,8 @@ function MyViewModel() {
 	                      '<p>Please try again later.</p>' +
 	                      '</div>';
 
-	            infowindow.setContent(content);
-	            infowindow.open(myMap, place.marker);
+	            infoWindow.setContent(content);
+	            infoWindow.open(myMap, place.marker);
             }
       	});
     };
@@ -213,20 +229,10 @@ function MyViewModel() {
             radius: '500',
             types: ['restaurant','bar','shopping_mall','movie_theater','clothing_store','book_store']
         };
-        
-  		autocomplete = new google.maps.places.Autocomplete(document.getElementById('searchInput'));
-  		autocomplete.bindTo('bounds', myMap);
 
-        infowindow = new google.maps.InfoWindow();
+        infoWindow = new google.maps.InfoWindow();
         service = new google.maps.places.PlacesService(myMap);
         service.nearbySearch(request, placesCallback);
-
-		autocomplete.addListener('place_changed', function() {
-			var place = autocomplete.getPlace();
-			self.searchString(place.name);
-			$('#searchButton').trigger('click');
-       		//$('#' + place.id).trigger('click');
-		});
     	
         if (window.innerWidth < 720  && self.displayingList()) {
         	// close search list when the screen is resized to a small screen size
@@ -268,14 +274,13 @@ function MyViewModel() {
 
     // function to create the markers for the google map
     function createMarker(place) {
-      var placeLoc = place.geometry.location;
       var marker = new google.maps.Marker( {
         map: myMap,
         position: place.geometry.location
       });
 
       // add listeners to the map to handle events
-      google.maps.event.addListener(infowindow, 'closeclick', function() {
+      google.maps.event.addListener(infoWindow, 'closeclick', function() {
         self.currentPlace().marker.setAnimation(null);
         $('#' + place.id).removeClass("current-place");
       });
@@ -308,13 +313,12 @@ function MyViewModel() {
 
 var googleSuccess = function() {
 	ko.applyBindings(new MyViewModel());
-}
+};
 
 var googleError = function() {
 	$('#pointsOfInterest').addClass("hidden-container");
 	$('#searchForm').addClass("error-hidden");
 	$('#gMap').append("<p id='errorMessage'>The neighborhood map can't be displayed at this time because the necessary resources are not available.</p>");
 	$('#gMap').addClass("error-container");
-}
-
+};
 
